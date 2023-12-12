@@ -12,22 +12,41 @@ from std_msgs.msg import Header
 from geometry_msgs.msg import Vector3
 from sensor_msgs.msg import JointState
 
+# One type of mapping is like this
+"""
+PEPPER_TO_CMU_JOINT_MAPPING = {
+    'HeadYaw': 'Head.Zrotation',
+    'HeadPitch': 'Head.Yrotation',
+    'HipRoll': 'Hip.Xrotation',
+    'HipPitch': 'Hip.Yrotation',
+    'LShoulderPitch': 'LeftArm.Yrotation',
+    'LShoulderRoll': 'LeftArm.Zrotation',
+    'LElbowYaw': 'LeftForeArm.Xrotation',
+    'LElbowRoll': 'LeftForeArm.Zrotation',
+    'LWristYaw': 'LeftHand.Xrotation',
+    'RShoulderPitch': 'RightArm.Yrotation',
+    'RShoulderRoll': 'RightArm.Zrotation',
+    'RElbowYaw': 'RightForeArm.Xrotation',
+    'RElbowRoll': 'RightForeArm.Zrotation',
+    'RWristYaw': 'RightHand.Xrotation'
+}
+"""
+# Another type of mapping is like this
 PEPPER_TO_CMU_JOINT_MAPPING = {
     'HeadYaw': 'head.Zrotation',
     'HeadPitch': 'head.Yrotation',
-    # Currently having issues with hips being mapped when it shouldn't be 
-    # 'HipRoll': 'hip.Xrotation',
-    # 'HipPitch': 'hip.Yrotation',
+    'HipRoll': 'abdomen.Xrotation',
+    'HipPitch': 'abdomen.Yrotation',
     'LShoulderPitch': 'lShldr.Yrotation',
     'LShoulderRoll': 'lShldr.Zrotation',
     'LElbowYaw': 'lForeArm.Xrotation',
     'LElbowRoll': 'lForeArm.Zrotation',
-    'LWristYaw': 'lForeArm.Xrotation',
+    'LWristYaw': 'lHand.Xrotation',
     'RShoulderPitch': 'rShldr.Yrotation',
     'RShoulderRoll': 'rShldr.Zrotation',
     'RElbowYaw': 'rForeArm.Xrotation',
     'RElbowRoll': 'rForeArm.Zrotation',
-    'RWristYaw': 'rForeArm.Xrotation'
+    'RWristYaw': 'rHand.Xrotation'
 }
 CMU_TO_PEPPER_JOINT_MAPPING = {v:k for k,v in PEPPER_TO_CMU_JOINT_MAPPING.items()}
 
@@ -331,7 +350,12 @@ class BVHLoader:
                             [0.,0.,0.,1.]])
 
         for channel in root.channels:
+
             keyval = self.this_motion[self.counter]
+            # if root.name == 'RightForeArm' and keyval > 0:
+                # print(root.name)
+                # print(channel)
+                # print(keyval)
             if(channel == "Xrotation"):
                 flag_rot = True
                 xrot = keyval
@@ -343,6 +367,7 @@ class BVHLoader:
                                         [0., s, c,0.], 
                                         [0.,0.,0.,1.]])
                 rot_mat = np.matmul(rot_mat, rot_mat_x)
+                rx = keyval
             elif(channel == "Yrotation"):
                 flag_rot = True
                 yrot = keyval
@@ -354,6 +379,7 @@ class BVHLoader:
                                         [-s,0., c,0.],
                                         [0.,0.,0.,1.]])
                 rot_mat = np.matmul(rot_mat, rot_mat_y)
+                ry = keyval
 
             elif(channel == "Zrotation"):
                 flaisRootg_rot = True
@@ -366,24 +392,24 @@ class BVHLoader:
                                         [0.,0.,1.,0.],
                                         [0.,0.,0.,1.]])
                 rot_mat = np.matmul(rot_mat, rot_mat_z)
+                rz = keyval
             self.counter += 1            
 
         # Transform rotation to Pepper coordinate system
-        rx, ry, rz = euler_from_matrix(rot_mat, axes='szyx')
+        rx, ry, rz = euler_from_matrix(rot_mat, axes='szxy')
 
         cmu_rot_x_name = '{}.Xrotation'.format(root.name)
         cmu_rot_y_name = '{}.Yrotation'.format(root.name)
         cmu_rot_z_name = '{}.Zrotation'.format(root.name)
         
-        print("mapping")
-        print(rx)
-        print(cmu_rot_x_name)
-        print(ry)
-        print(cmu_rot_y_name)
-        print(rz)
+        # print("mapping")
+        # print(rx)
+        # print(cmu_rot_x_name)
+        # print(ry)
+        # print(cmu_rot_y_name)
+        # print(rz)
         
-        
-        print(cmu_rot_z_name)
+        # print(cmu_rot_z_name)
 
 	
 
@@ -405,16 +431,19 @@ class BVHLoader:
         # print(gesture_dict)
         return gesture_dict
 
-    def toPepperJoint(self, fetch_every=12):
+    def toPepperJoint(self, fetch_every=10):
         gesture_list = []
-        for ind in range(0,self.num_motions,fetch_every):
+        for ind in range(0,self.num_motions, fetch_every):
             self.counter = 0
             self.this_motion = self.all_motions[ind]
+            
+            # print(self.this_motion)
             gesture_dict = {key: 0.0 for key in PEPPER_TO_CMU_JOINT_MAPPING.keys()}
             gesture_dict = self.extractRootJoint(self.root, gesture_dict=gesture_dict)
             gesture_list.append(gesture_dict)
-            #print("gesturelist:")
-            #print(gesture_list)
+            # print(gesture_dict)
+            # print("gesturelist:")
+            # print(gesture_list)
         return gesture_list
         
 def play_gesture(gesture_data):
@@ -430,34 +459,36 @@ def play_gesture(gesture_data):
         print(gesture_data.iloc[i].tolist())
         joint_angles_msg.joint_angles = gesture_data.iloc[i].tolist()
         joint_angles_msg.speed = 0.1
-        joint_angles_msg.relative = 0
+        joint_angles_msg.relative = 1
         # Sends joint angle command every few seconds 
-        time.sleep(5)
+        time.sleep(0.3)
         joint_angles_msg.header.stamp = rospy.Time.now()
         pub.publish(joint_angles_msg)
 
-# Not implemented, looking to reset pepper joints to neutral position after every motion. 
-def reset(gesture_data):
+# Reset pepper joints to neutral position after every motion. 
+def reset_pepper_joints():
     rospy.init_node('joint_angles_publisher', anonymous=True)
     pub = rospy.Publisher('/joint_angles', JointAnglesWithSpeed, queue_size=10)
     rate = rospy.Rate(10)  # 10 Hz
-  
-    for i in range(len(gesture_data)):
-        joint_angles_msg = JointAnglesWithSpeed()
-        joint_angles_msg.header = Header(seq=0, stamp=rospy.Time.now(), frame_id='')
-        joint_angles_msg.joint_names = gesture_data.columns
-        joint_angles_msg.joint_angles = gesture_data.iloc[i].tolist()
-        joint_angles_msg.speed = 0.1
-        joint_angles_msg.relative = 0
-        # Testing interval between sending each joint
-        time.sleep(1)
-        joint_angles_msg.header.stamp = rospy.Time.now()
-        pub.publish(joint_angles_msg)
-        
-
+    joint_angles_msg = JointAnglesWithSpeed()
+    joint_angles_msg.header = Header(seq=0, stamp=rospy.Time.now(), frame_id='')
+    joint_angles_msg.joint_names = ['HeadYaw', 'HeadPitch', 'HipRoll', 'HipPitch', 'LShoulderPitch',
+       'LShoulderRoll', 'LElbowYaw', 'LElbowRoll', 'LWristYaw',
+       'RShoulderPitch', 'RShoulderRoll', 'RElbowYaw', 'RElbowRoll',
+       'RWristYaw']
+    joint_angles_msg.joint_angles = [0, 0, 0, 0, 1.6, 0, 0, 0, 0, 1.6, 0, 0, 0, 0]
+    joint_angles_msg.speed = 0.3
+    joint_angles_msg.relative = 0
+    time.sleep(0.3)
+    joint_angles_msg.header.stamp = rospy.Time.now()
+    print(joint_angles_msg)
+    pub.publish(joint_angles_msg)
+    
+    
+ 
 if __name__ == "__main__":
     # Source this where your bvh file is
-    # bvh_file = '/home/emily/catkin_ws/src/gesture/wave.bvh'
+    bvh_file = '/home/emily/catkin_ws/src/pepperbvh/80_30.bvh'
     bvh_test = BVHLoader(bvh_file)
 
     print('== Hierarchy ==')
@@ -471,10 +502,13 @@ if __name__ == "__main__":
     df = pd.DataFrame(gesture_list)
 
     columns = df.columns.tolist()
-    # print(columns)
-    # for column in columns:
-        # print(column)
-        # print(df[column].tolist())
+    print(columns)
+    for column in columns:
+        print(column)
+        print(df[column].tolist())
+        print(len(df[column]))
         
+    reset_pepper_joints()
     play_gesture(df)
+    reset_pepper_joints()
   
