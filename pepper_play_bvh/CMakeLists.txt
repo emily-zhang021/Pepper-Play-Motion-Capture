@@ -133,7 +133,7 @@ include_directories(
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
 # add_executable(${PROJECT_NAME}_node src/pepperbvh_node.cpp)
-catkin_install_python(PROGRAMS playmotion.py
+catkin_install_python(PROGRAMS src/playmotion.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 ## Rename C++ executable without prefix

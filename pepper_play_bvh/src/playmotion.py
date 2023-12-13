@@ -11,9 +11,10 @@ from naoqi_bridge_msgs.msg import JointAnglesWithSpeed
 from std_msgs.msg import Header
 from geometry_msgs.msg import Vector3
 from sensor_msgs.msg import JointState
+from std_msgs.msg import String
 
 # One type of mapping is like this
-"""
+
 PEPPER_TO_CMU_JOINT_MAPPING = {
     'HeadYaw': 'Head.Zrotation',
     'HeadPitch': 'Head.Yrotation',
@@ -48,6 +49,7 @@ PEPPER_TO_CMU_JOINT_MAPPING = {
     'RElbowRoll': 'rForeArm.Zrotation',
     'RWristYaw': 'rHand.Xrotation'
 }
+"""
 CMU_TO_PEPPER_JOINT_MAPPING = {v:k for k,v in PEPPER_TO_CMU_JOINT_MAPPING.items()}
 
 # map axes strings to/from tuples of inner axis, parity, repetition, frame
@@ -396,7 +398,7 @@ class BVHLoader:
             self.counter += 1            
 
         # Transform rotation to Pepper coordinate system
-        rx, ry, rz = euler_from_matrix(rot_mat, axes='szxy')
+        rx, ry, rz = euler_from_matrix(rot_mat, axes='szyx')
 
         cmu_rot_x_name = '{}.Xrotation'.format(root.name)
         cmu_rot_y_name = '{}.Yrotation'.format(root.name)
@@ -447,7 +449,6 @@ class BVHLoader:
         return gesture_list
         
 def play_gesture(gesture_data):
-    rospy.init_node('joint_angles_publisher', anonymous=True)
     pub = rospy.Publisher('/joint_angles', JointAnglesWithSpeed, queue_size=10)
     rate = rospy.Rate(10)  # 10 Hz
   
@@ -459,15 +460,14 @@ def play_gesture(gesture_data):
         print(gesture_data.iloc[i].tolist())
         joint_angles_msg.joint_angles = gesture_data.iloc[i].tolist()
         joint_angles_msg.speed = 0.1
-        joint_angles_msg.relative = 1
+        joint_angles_msg.relative = 0
         # Sends joint angle command every few seconds 
-        time.sleep(0.3)
+        time.sleep(0.4)
         joint_angles_msg.header.stamp = rospy.Time.now()
         pub.publish(joint_angles_msg)
 
 # Reset pepper joints to neutral position after every motion. 
 def reset_pepper_joints():
-    rospy.init_node('joint_angles_publisher', anonymous=True)
     pub = rospy.Publisher('/joint_angles', JointAnglesWithSpeed, queue_size=10)
     rate = rospy.Rate(10)  # 10 Hz
     joint_angles_msg = JointAnglesWithSpeed()
@@ -484,31 +484,47 @@ def reset_pepper_joints():
     print(joint_angles_msg)
     pub.publish(joint_angles_msg)
     
-    
- 
-if __name__ == "__main__":
-    # Source this where your bvh file is
-    bvh_file = '/home/emily/catkin_ws/src/pepperbvh/80_30.bvh'
-    bvh_test = BVHLoader(bvh_file)
+def process_bvh_path(data):
 
+    rospy.loginfo("Received path: %s", data.data)
+    bvh_file = data.data
+    bvh_loaded = BVHLoader(bvh_file)
     print('== Hierarchy ==')
-    print(bvh_test.root)
+    print(bvh_loaded.root)
     print('== Unique Name & Channels ==')
-    print(bvh_test.root.get_unique_node_info())
+    print(bvh_loaded.root.get_unique_node_info())
     print('== Motions ==')
-    print(len(bvh_test.all_motions))
+    print(len(bvh_loaded.all_motions))
     
-    gesture_list = bvh_test.toPepperJoint()
+    gesture_list = bvh_loaded.toPepperJoint()
     df = pd.DataFrame(gesture_list)
-
+    reset_pepper_joints()
+    play_gesture(df)
+    reset_pepper_joints()
+    
+    """
+    # Lists all values
     columns = df.columns.tolist()
     print(columns)
     for column in columns:
         print(column)
         print(df[column].tolist())
         print(len(df[column]))
-        
-    reset_pepper_joints()
-    play_gesture(df)
-    reset_pepper_joints()
+    """
+    
+def bvh_path_subscriber():
+    rospy.init_node('bvh_path_subscriber', anonymous=True)
+    rospy.Subscriber('bvh_path_topic', String, process_bvh_path)
+    rospy.spin()
+    
+ 
+if __name__ == "__main__":
+    try:
+        bvh_path_subscriber()
+    except rospy.ROSInterruptException:
+        pass
+
+      
+    
+
   
