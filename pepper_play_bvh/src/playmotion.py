@@ -14,7 +14,7 @@ from sensor_msgs.msg import JointState
 from std_msgs.msg import String
 
 # One type of mapping is like this
-
+"""
 PEPPER_TO_CMU_JOINT_MAPPING = {
     'HeadYaw': 'Head.Zrotation',
     'HeadPitch': 'Head.Yrotation',
@@ -32,7 +32,7 @@ PEPPER_TO_CMU_JOINT_MAPPING = {
     'RWristYaw': 'RightHand.Xrotation'
 }
 """
-# Another type of mapping is like this
+# Another type of mapping is like this. Check your bvh file. 
 PEPPER_TO_CMU_JOINT_MAPPING = {
     'HeadYaw': 'head.Zrotation',
     'HeadPitch': 'head.Yrotation',
@@ -49,7 +49,7 @@ PEPPER_TO_CMU_JOINT_MAPPING = {
     'RElbowRoll': 'rForeArm.Zrotation',
     'RWristYaw': 'rHand.Xrotation'
 }
-"""
+
 CMU_TO_PEPPER_JOINT_MAPPING = {v:k for k,v in PEPPER_TO_CMU_JOINT_MAPPING.items()}
 
 # map axes strings to/from tuples of inner axis, parity, repetition, frame
@@ -398,7 +398,10 @@ class BVHLoader:
             self.counter += 1            
 
         # Transform rotation to Pepper coordinate system
-        rx, ry, rz = euler_from_matrix(rot_mat, axes='szyx')
+        if root.name == "LeftShoulder" or root.name == "RightShoulder":
+            rx, ry, rz = euler_from_matrix(rot_mat, axes='szxy')
+        else:
+            rx, ry, rz = euler_from_matrix(rot_mat, axes='rzxy')
 
         cmu_rot_x_name = '{}.Xrotation'.format(root.name)
         cmu_rot_y_name = '{}.Yrotation'.format(root.name)
@@ -523,8 +526,3 @@ if __name__ == "__main__":
         bvh_path_subscriber()
     except rospy.ROSInterruptException:
         pass
-
-      
-    
-
-  
