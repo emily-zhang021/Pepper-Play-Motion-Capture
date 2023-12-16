@@ -13,7 +13,7 @@ from geometry_msgs.msg import Vector3
 from sensor_msgs.msg import JointState
 from std_msgs.msg import String
 
-# One type of mapping is like this
+# On some bvh files, the joint names are in the format below.
 """
 PEPPER_TO_CMU_JOINT_MAPPING = {
     'HeadYaw': 'Head.Zrotation',
@@ -32,7 +32,8 @@ PEPPER_TO_CMU_JOINT_MAPPING = {
     'RWristYaw': 'RightHand.Xrotation'
 }
 """
-# Another type of mapping is like this. Check your bvh file. 
+# However, on most bvh files, the joint names correspond to this format.
+# Please check and utilize the appropriate mapping for your bvh file. 
 PEPPER_TO_CMU_JOINT_MAPPING = {
     'HeadYaw': 'head.Zrotation',
     'HeadPitch': 'head.Yrotation',
@@ -68,6 +69,7 @@ _EPS = np.finfo(np.float64).eps * 4.0
 
 def euler_from_matrix(matrix, axes='sxzx'):
     """Return Euler angles from rotation matrix for specified axis sequence.
+    Explanation: https://github.com/matthew-brett/transforms3d/blob/main/transforms3d/euler.py#L237
     axes : One of 24 axis sequences as string
     Note that many Euler angle triplets can describe one matrix.
     >>> R0 = euler_matrix(1, 2, 3, 'syxz')
@@ -354,10 +356,6 @@ class BVHLoader:
         for channel in root.channels:
 
             keyval = self.this_motion[self.counter]
-            # if root.name == 'RightForeArm' and keyval > 0:
-                # print(root.name)
-                # print(channel)
-                # print(keyval)
             if(channel == "Xrotation"):
                 flag_rot = True
                 xrot = keyval
@@ -369,7 +367,6 @@ class BVHLoader:
                                         [0., s, c,0.], 
                                         [0.,0.,0.,1.]])
                 rot_mat = np.matmul(rot_mat, rot_mat_x)
-                rx = keyval
             elif(channel == "Yrotation"):
                 flag_rot = True
                 yrot = keyval
@@ -381,7 +378,6 @@ class BVHLoader:
                                         [-s,0., c,0.],
                                         [0.,0.,0.,1.]])
                 rot_mat = np.matmul(rot_mat, rot_mat_y)
-                ry = keyval
 
             elif(channel == "Zrotation"):
                 flaisRootg_rot = True
@@ -394,29 +390,25 @@ class BVHLoader:
                                         [0.,0.,1.,0.],
                                         [0.,0.,0.,1.]])
                 rot_mat = np.matmul(rot_mat, rot_mat_z)
-                rz = keyval
             self.counter += 1            
+
+        """ 
+        # Theoretically this should work by transforming the shoulder and hip joints as static rotations and the rest as relative rotations.
+        # However, the joint rotations are currently more accurate when all are relative rotations. 
 
         # Transform rotation to Pepper coordinate system
         if root.name == "LeftShoulder" or root.name == "RightShoulder":
             rx, ry, rz = euler_from_matrix(rot_mat, axes='szxy')
         else:
             rx, ry, rz = euler_from_matrix(rot_mat, axes='rzxy')
+        """
+
+        # Transform bvh file in the rotation order of "Z X Y" to Pepper
+        rx, ry, rz = euler_from_matrix(rot_mat, axes='rzxy')
 
         cmu_rot_x_name = '{}.Xrotation'.format(root.name)
         cmu_rot_y_name = '{}.Yrotation'.format(root.name)
         cmu_rot_z_name = '{}.Zrotation'.format(root.name)
-        
-        # print("mapping")
-        # print(rx)
-        # print(cmu_rot_x_name)
-        # print(ry)
-        # print(cmu_rot_y_name)
-        # print(rz)
-        
-        # print(cmu_rot_z_name)
-
-	
 
         if cmu_rot_x_name in CMU_TO_PEPPER_JOINT_MAPPING:
             pepper_joint_name = CMU_TO_PEPPER_JOINT_MAPPING[cmu_rot_x_name]
@@ -432,8 +424,6 @@ class BVHLoader:
 
         for child in root.children:
             gesture_dict = self.extractRootJoint(child, gesture_dict=gesture_dict)
-        # print("gesture dict:")
-        # print(gesture_dict)
         return gesture_dict
 
     def toPepperJoint(self, fetch_every=10):
@@ -442,13 +432,9 @@ class BVHLoader:
             self.counter = 0
             self.this_motion = self.all_motions[ind]
             
-            # print(self.this_motion)
             gesture_dict = {key: 0.0 for key in PEPPER_TO_CMU_JOINT_MAPPING.keys()}
             gesture_dict = self.extractRootJoint(self.root, gesture_dict=gesture_dict)
             gesture_list.append(gesture_dict)
-            # print(gesture_dict)
-            # print("gesturelist:")
-            # print(gesture_list)
         return gesture_list
         
 def play_gesture(gesture_data):
@@ -462,9 +448,11 @@ def play_gesture(gesture_data):
         print(gesture_data.columns)
         print(gesture_data.iloc[i].tolist())
         joint_angles_msg.joint_angles = gesture_data.iloc[i].tolist()
+
+        # Speed can be changed. Movements are less smooth with a greater speed. 
         joint_angles_msg.speed = 0.1
         joint_angles_msg.relative = 0
-        # Sends joint angle command every few seconds 
+        # Sends joint angle command every 0.4 seconds.
         time.sleep(0.4)
         joint_angles_msg.header.stamp = rospy.Time.now()
         pub.publish(joint_angles_msg)
@@ -479,6 +467,8 @@ def reset_pepper_joints():
        'LShoulderRoll', 'LElbowYaw', 'LElbowRoll', 'LWristYaw',
        'RShoulderPitch', 'RShoulderRoll', 'RElbowYaw', 'RElbowRoll',
        'RWristYaw']
+    
+    # 1.6 is on LShoulderPitch and RShoulderPitch to ensure Pepper's arms are down at their sides. 
     joint_angles_msg.joint_angles = [0, 0, 0, 0, 1.6, 0, 0, 0, 0, 1.6, 0, 0, 0, 0]
     joint_angles_msg.speed = 0.3
     joint_angles_msg.relative = 0
@@ -504,16 +494,6 @@ def process_bvh_path(data):
     reset_pepper_joints()
     play_gesture(df)
     reset_pepper_joints()
-    
-    """
-    # Lists all values
-    columns = df.columns.tolist()
-    print(columns)
-    for column in columns:
-        print(column)
-        print(df[column].tolist())
-        print(len(df[column]))
-    """
     
 def bvh_path_subscriber():
     rospy.init_node('bvh_path_subscriber', anonymous=True)
