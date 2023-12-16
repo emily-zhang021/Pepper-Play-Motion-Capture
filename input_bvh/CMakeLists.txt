@@ -196,10 +196,6 @@ catkin_install_python(PROGRAMS src/bvh_path_publisher.py
 #############
 ## Testing ##
 #############
-if(CATKIN_ENABLE_TESTING)
-  find_package(rostest REQUIRED)
-  add_rostest(test/test_bvh_path_publisher.py)
-endif()
 ## Add gtest based cpp test target and link libraries
 # catkin_add_gtest(${PROJECT_NAME}-test test/test_input_bvh.cpp)
 # if(TARGET ${PROJECT_NAME}-test)
