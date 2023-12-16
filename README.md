@@ -1,4 +1,5 @@
 # Pepper-Play-Motion-Capture
+This repository will play a motion from a bvh file on a Pepper robot. 
 
 # Prerequisites
 Make sure your ROS environment is set up to run either an emulated Pepper or connect to a real Pepper robot. See https://github.com/rosielab/ROStoNAO-Bridge-Docker-Setup if you do not have your ROS environment configured. 
